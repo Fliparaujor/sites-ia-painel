@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sites IA · painel</title>
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="estilo.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+  <section id="tela-login" class="login" hidden>
+    <form id="form-login" class="login__caixa">
+      <h1>Sites IA</h1>
+      <label>E-mail <input type="email" name="email" autocomplete="username" required></label>
+      <label>Senha <input type="password" name="senha" autocomplete="current-password" required minlength="8"></label>
+      <button type="submit" class="botao botao--forte">Entrar</button>
+      <button type="button" id="criar-conta" class="botao botao--texto">Criar conta</button>
+      <p class="mensagem" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <div id="tela-app" hidden>
+    <header class="topo">
+      <strong class="topo__marca">Sites IA</strong>
+      <nav class="abas" aria-label="Seções">
+        <button type="button" class="aba" data-aba="buscar" aria-current="page">Buscar</button>
+        <button type="button" class="aba" data-aba="leads">Leads</button>
+        <button type="button" class="aba" data-aba="sites">Sites</button>
+      </nav>
+      <button type="button" id="sair" class="botao botao--texto">Sair</button>
+    </header>
+
+    <main id="conteudo">
+      <section data-painel="buscar">
+        <form id="form-busca" class="busca">
+          <label>Nicho <input name="nicho" placeholder="clínicas e consultórios" required></label>
+          <label>Cidade <input name="cidade" placeholder="Curitiba PR" required></label>
+          <button type="submit" class="botao botao--forte">Buscar comércios sem site</button>
+        </form>
+        <p id="resumo-busca" class="resumo" role="status" aria-live="polite"></p>
+        <ul id="lista-busca" class="lista"></ul>
+      </section>
+
+      <section data-painel="leads" hidden>
+        <div class="filtros">
+          <label>Status
+            <select id="filtro-status">
+              <option value="">Todos</option>
+              <option value="novo">Novo</option>
+              <option value="liguei">Liguei</option>
+              <option value="sem_resposta">Sem resposta</option>
+              <option value="interessado">Interessado</option>
+              <option value="fechado">Fechado</option>
+              <option value="perdido">Perdido</option>
+            </select>
+          </label>
+          <label>Procurar <input id="filtro-texto" type="search" placeholder="nome, bairro, categoria"></label>
+        </div>
+        <ul id="lista-leads" class="lista"></ul>
+      </section>
+
+      <section data-painel="sites" hidden>
+        <ul id="lista-sites" class="lista"></ul>
+      </section>
+    </main>
+  </div>
+
+  <template id="modelo-lead">
+    <li class="lead">
+      <div class="lead__cabeca">
+        <div>
+          <h2 class="lead__nome"></h2>
+          <p class="lead__meta"></p>
+          <p class="lead__endereco"></p>
+        </div>
+        <label class="lead__status">Status <select></select></label>
+      </div>
+      <div class="lead__acoes">
+        <a class="botao" data-acao="ligar">Ligar</a>
+        <a class="botao" data-acao="whats" target="_blank" rel="noopener">WhatsApp</a>
+        <a class="botao" data-acao="maps" target="_blank" rel="noopener">Maps</a>
+        <button type="button" class="botao botao--forte" data-acao="gerar">Gerar site (API)</button>
+        <button type="button" class="botao" data-acao="local">Gerar no Claude Code</button>
+      </div>
+      <label class="lead__obs">Anotações <textarea rows="2"></textarea></label>
+      <div class="lead__progresso" role="status" aria-live="polite"></div>
+    </li>
+  </template>
+</body>
+</html>
