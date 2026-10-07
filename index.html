@@ -17,52 +17,106 @@
       <label>E-mail <input type="email" name="email" autocomplete="username" required></label>
       <label>Senha <input type="password" name="senha" autocomplete="current-password" required minlength="8"></label>
       <button type="submit" class="botao botao--forte">Entrar</button>
-      <button type="button" id="criar-conta" class="botao botao--texto">Criar conta</button>
       <p class="mensagem" role="status" aria-live="polite"></p>
     </form>
   </section>
 
-  <div id="tela-app" hidden>
-    <header class="topo">
-      <strong class="topo__marca">Sites IA</strong>
-      <nav class="abas" aria-label="Seções">
-        <button type="button" class="aba" data-aba="buscar" aria-current="page">Buscar</button>
-        <button type="button" class="aba" data-aba="leads">Leads</button>
-        <button type="button" class="aba" data-aba="sites">Sites</button>
-      </nav>
-      <button type="button" id="sair" class="botao botao--texto">Sair</button>
+  <div id="tela-app" class="app" hidden>
+    <header class="barra-movel">
+      <button type="button" id="abrir-menu" class="botao botao--texto" aria-controls="menu" aria-expanded="false">Menu</button>
+      <strong id="titulo-movel">Buscar leads</strong>
     </header>
 
-    <main id="conteudo">
+    <aside id="menu" class="menu">
+      <strong class="menu__marca">Sites IA</strong>
+      <nav aria-label="Seções">
+        <ul class="menu__lista">
+          <li><button type="button" class="menu__item" data-aba="buscar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Buscar leads</button></li>
+          <li><button type="button" class="menu__item" data-aba="oportunidades">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>
+            Oportunidades</button></li>
+          <li><button type="button" class="menu__item" data-aba="criar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 11-11"/><path d="m13 7 4 4"/><path d="M18 3v3M16.5 4.5h3M20 9v2M19 10h2"/></svg>
+            Criar site</button></li>
+          <li><button type="button" class="menu__item" data-aba="contatos">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.7 2.6 3 5.2"/></svg>
+            Meus contatos</button></li>
+          <li><button type="button" class="menu__item" data-aba="historico">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/></svg>
+            Histórico de buscas</button></li>
+          <li><button type="button" class="menu__item" data-aba="sites">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 6.5h.01M10 6.5h.01"/></svg>
+            Sites gerados</button></li>
+        </ul>
+      </nav>
+      <button type="button" id="sair" class="botao botao--texto menu__sair">Sair</button>
+    </aside>
+    <div id="fundo-menu" class="fundo-menu" hidden></div>
+
+    <main id="conteudo" class="conteudo">
       <section data-painel="buscar">
+        <h1 class="titulo">Buscar leads</h1>
         <form id="form-busca" class="busca">
-          <label>Nicho <input name="nicho" placeholder="clínicas e consultórios" required></label>
-          <label>Cidade <input name="cidade" placeholder="Curitiba PR" required></label>
+          <label>Nicho
+            <select id="sel-nicho" name="nicho_grupo"></select>
+          </label>
+          <label>Subnicho
+            <select id="sel-subnicho" name="subnicho"></select>
+          </label>
+          <label>Ou digite o que buscar
+            <input id="txt-nicho" name="nicho_livre" placeholder="ex.: clínica de estética canina">
+          </label>
+          <label>Cidade
+            <input name="cidade" placeholder="Curitiba PR" required autocomplete="address-level2">
+          </label>
           <button type="submit" class="botao botao--forte">Buscar comércios sem site</button>
         </form>
+        <p id="aviso-repetida" class="resumo" role="status" aria-live="polite"></p>
         <p id="resumo-busca" class="resumo" role="status" aria-live="polite"></p>
         <ul id="lista-busca" class="lista"></ul>
       </section>
 
-      <section data-painel="leads" hidden>
+      <section data-painel="oportunidades" hidden>
+        <h1 class="titulo">Oportunidades</h1>
+        <p class="explica">Quem ainda não foi chamado, na ordem de quem vale mais a pena ligar primeiro: nota boa, muitas avaliações, fotos no Maps e nenhum site.</p>
+        <ul id="lista-oportunidades" class="lista"></ul>
+      </section>
+
+      <section data-painel="criar" hidden>
+        <h1 class="titulo">Criar site</h1>
+        <p class="explica">Primeiro os interessados e fechados que ainda não têm site. Procure qualquer outro pelo nome.</p>
+        <label class="campo-unico">Procurar lead <input id="busca-criar" type="search" placeholder="nome do comércio"></label>
+        <ul id="lista-criar" class="lista"></ul>
+      </section>
+
+      <section data-painel="contatos" hidden>
+        <h1 class="titulo">Meus contatos</h1>
         <div class="filtros">
           <label>Status
             <select id="filtro-status">
-              <option value="">Todos</option>
-              <option value="novo">Novo</option>
+              <option value="">Todos já chamados</option>
               <option value="liguei">Liguei</option>
               <option value="sem_resposta">Sem resposta</option>
               <option value="interessado">Interessado</option>
               <option value="fechado">Fechado</option>
               <option value="perdido">Perdido</option>
+              <option value="novo">Novos (ainda não chamados)</option>
             </select>
           </label>
           <label>Procurar <input id="filtro-texto" type="search" placeholder="nome, bairro, categoria"></label>
         </div>
-        <ul id="lista-leads" class="lista"></ul>
+        <ul id="lista-contatos" class="lista"></ul>
+      </section>
+
+      <section data-painel="historico" hidden>
+        <h1 class="titulo">Histórico de buscas</h1>
+        <ul id="lista-historico" class="lista"></ul>
       </section>
 
       <section data-painel="sites" hidden>
+        <h1 class="titulo">Sites gerados</h1>
         <ul id="lista-sites" class="lista"></ul>
       </section>
     </main>

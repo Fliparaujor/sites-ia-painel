@@ -1,5 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_KEY, WORKER_URL, SEU_NOME } from "./config.js";
+import { NICHOS } from "./nichos.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = (s, el = document) => el.querySelector(s);
@@ -42,14 +43,6 @@ formLogin.addEventListener("submit", async (e) => {
   const { error } = await sb.auth.signInWithPassword({ email: f.get("email"), password: f.get("senha") });
   $(".mensagem", formLogin).textContent = error ? `Não entrou: ${error.message}` : "";
 });
-$("#criar-conta").addEventListener("click", async () => {
-  const f = new FormData(formLogin);
-  if (!formLogin.reportValidity()) return;
-  const { error } = await sb.auth.signUp({ email: f.get("email"), password: f.get("senha") });
-  $(".mensagem", formLogin).textContent = error
-    ? `Não criou: ${error.message}`
-    : "Conta criada. Se o Supabase pedir confirmação, abra o e-mail e depois entre.";
-});
 $("#sair").addEventListener("click", () => sb.auth.signOut());
 
 sb.auth.onAuthStateChange((_evento, sessao) => {
@@ -58,20 +51,41 @@ sb.auth.onAuthStateChange((_evento, sessao) => {
   if (sessao) abrirAba(location.hash.slice(1) || "buscar");
 });
 
-// ---------- abas ----------
+// ---------- menu lateral ----------
+const SECOES = {
+  buscar: "Buscar leads", oportunidades: "Oportunidades", criar: "Criar site",
+  contatos: "Meus contatos", historico: "Histórico de buscas", sites: "Sites gerados",
+};
+const menu = $("#menu");
+const fundoMenu = $("#fundo-menu");
+const botaoMenu = $("#abrir-menu");
+function menuMovel(aberto) {
+  menu.classList.toggle("aberto", aberto);
+  fundoMenu.hidden = !aberto;
+  botaoMenu.setAttribute("aria-expanded", String(aberto));
+  if (aberto) $(".menu__item[aria-current]", menu)?.focus();
+}
+botaoMenu.addEventListener("click", () => menuMovel(!menu.classList.contains("aberto")));
+fundoMenu.addEventListener("click", () => menuMovel(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menu.classList.contains("aberto")) { menuMovel(false); botaoMenu.focus(); } });
+
 function abrirAba(nome) {
-  if (!["buscar", "leads", "sites"].includes(nome)) nome = "buscar";
-  document.querySelectorAll(".aba").forEach((b) => {
+  if (!SECOES[nome]) nome = "buscar";
+  document.querySelectorAll(".menu__item").forEach((b) => {
     if (b.dataset.aba === nome) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   });
   document.querySelectorAll("[data-painel]").forEach((p) => (p.hidden = p.dataset.painel !== nome));
+  $("#titulo-movel").textContent = SECOES[nome];
   history.replaceState(null, "", `#${nome}`);
-  if (nome === "leads") carregarLeads();
+  menuMovel(false);
+  if (nome === "oportunidades") carregarOportunidades();
+  if (nome === "criar") carregarCriar();
+  if (nome === "contatos") carregarContatos();
+  if (nome === "historico") carregarHistorico();
   if (nome === "sites") carregarSites();
 }
-document.querySelectorAll(".aba").forEach((b) => b.addEventListener("click", () => abrirAba(b.dataset.aba)));
-
+document.querySelectorAll(".menu__item").forEach((b) => b.addEventListener("click", () => abrirAba(b.dataset.aba)));
 // ---------- cartão de lead ----------
 function cartaoLead(lead) {
   const li = $("#modelo-lead").content.firstElementChild.cloneNode(true);
@@ -232,55 +246,203 @@ async function prepararLocal(lead, botao, progresso) {
   }
 }
 
-function desenharLeads(lista, ul) {
-  ul.replaceChildren(...lista.map(cartaoLead));
+function desenharLeads(lista, ul, extra, textoVazio = "Nada por aqui.") {
+  ul.replaceChildren(...lista.map((l) => {
+    const li = cartaoLead(l);
+    if (extra) extra(li, l);
+    return li;
+  }));
   if (!lista.length) {
     const li = document.createElement("li");
-    li.className = "vazio"; li.textContent = "Nada por aqui.";
+    li.className = "vazio"; li.textContent = textoVazio;
     ul.append(li);
   }
 }
 
 // ---------- buscar ----------
-$("#form-busca").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  const botao = $('button[type="submit"]', e.target);
+const selNicho = $("#sel-nicho");
+const selSub = $("#sel-subnicho");
+const txtNicho = $("#txt-nicho");
+const formBusca = $("#form-busca");
+NICHOS.forEach((n, i) => selNicho.add(new Option(n.nome, String(i))));
+function preencherSubnichos() {
+  selSub.replaceChildren(...NICHOS[Number(selNicho.value)].subnichos.map((s) => new Option(s, s)));
+  avisarRepetida();
+}
+selNicho.addEventListener("change", preencherSubnichos);
+selSub.addEventListener("change", avisarRepetida);
+txtNicho.addEventListener("input", avisarRepetida);
+formBusca.elements.cidade.addEventListener("change", avisarRepetida);
+preencherSubnichos();
+
+function termoBuscado() {
+  return txtNicho.value.trim() || selSub.value;
+}
+
+let historicoCache = null;
+async function historico() {
+  if (!historicoCache) {
+    const { data } = await sb.from("buscas").select("*").order("criado_em", { ascending: false }).limit(500);
+    historicoCache = data || [];
+  }
+  return historicoCache;
+}
+const normal = (s) => (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+async function avisarRepetida() {
+  const aviso = $("#aviso-repetida");
+  const cidade = normal(formBusca.elements.cidade.value);
+  const termo = normal(termoBuscado());
+  if (!cidade || !termo) { aviso.textContent = ""; return; }
+  const igual = (await historico()).find((b) => normal(b.cidade) === cidade && normal(b.nicho) === termo);
+  aviso.textContent = igual
+    ? `Você já buscou isso em ${new Date(igual.criado_em).toLocaleDateString("pt-BR")} (${igual.sem_site} sem site). Buscar de novo atualiza a lista e mantém status e anotações.`
+    : "";
+}
+
+async function executarBusca(nicho, cidade) {
+  const botao = $('button[type="submit"]', formBusca);
   const resumo = $("#resumo-busca");
   botao.disabled = true;
-  resumo.textContent = "Buscando no Google Maps…";
+  resumo.textContent = `Buscando "${nicho}" em ${cidade} no Google Maps…`;
   try {
-    const r = await chamarWorker("/api/buscar", { nicho: f.get("nicho"), cidade: f.get("cidade") });
+    const r = await chamarWorker("/api/buscar", { nicho, cidade });
     const d = await r.json();
     if (!r.ok) throw new Error(d.erro || `erro ${r.status}`);
+    historicoCache = null;
     const soRede = d.leads.filter((l) => l.site_atual).length;
     resumo.textContent = `${d.total} encontrados, ${d.leads.length} sem site${soRede ? ` (${soRede} só com rede social)` : ""}.`;
-    desenharLeads(d.leads.sort((a, b) => (b.avaliacoes || 0) - (a.avaliacoes || 0)), $("#lista-busca"));
+    desenharLeads(d.leads.sort((a, b) => pontuar(b) - pontuar(a)), $("#lista-busca"));
   } catch (err) {
     resumo.textContent = `Falhou: ${err.message}`;
   } finally {
     botao.disabled = false;
   }
+}
+formBusca.addEventListener("submit", (e) => {
+  e.preventDefault();
+  executarBusca(termoBuscado(), formBusca.elements.cidade.value.trim());
 });
 
-// ---------- leads ----------
-async function carregarLeads() {
-  const { data, error } = await sb.from("leads").select("*").order("criado_em", { ascending: false }).limit(1000);
+// ---------- oportunidades ----------
+// Pontua o quanto vale ligar: sem site, nota boa, muitas avaliações, fotos (o site sai melhor).
+function pontuar(l) {
+  let p = l.site_atual ? 1 : 2;
+  if (l.nota >= 4.5) p += 2; else if (l.nota >= 4) p += 1;
+  if (l.avaliacoes >= 50) p += 2; else if (l.avaliacoes >= 15) p += 1;
+  if (l.qtd_fotos >= 5) p += 2; else if (l.qtd_fotos >= 1) p += 1;
+  if (!l.telefone_intl) p -= 3;
+  return p;
+}
+function motivos(l) {
+  const m = [];
+  if (!l.site_atual) m.push("sem site nenhum"); else m.push("só rede social");
+  if (l.nota >= 4.5 && l.avaliacoes >= 15) m.push(`${String(l.nota).replace(".", ",")} com ${l.avaliacoes} avaliações`);
+  if (l.qtd_fotos >= 5) m.push(`${l.qtd_fotos} fotos pro site`);
+  if (whatsDoLead(l.telefone_intl)) m.push("tem WhatsApp");
+  if (!l.telefone_intl) m.push("sem telefone no Maps");
+  return m.join(" · ");
+}
+async function carregarOportunidades() {
+  const { data, error } = await sb.from("leads").select("*").in("status", ["novo", "sem_resposta"]).limit(1000);
+  if (error) return;
+  const lista = data.sort((a, b) => pontuar(b) - pontuar(a)).slice(0, 100);
+  desenharLeads(lista, $("#lista-oportunidades"), (li, l) => {
+    const p = document.createElement("p");
+    p.className = "motivos"; p.textContent = motivos(l);
+    $(".lead__cabeca > div", li).append(p);
+  });
+}
+
+// ---------- criar site ----------
+let criarCache = [];
+async function carregarCriar() {
+  const [{ data: leads }, { data: sites }] = await Promise.all([
+    sb.from("leads").select("*").limit(1000),
+    sb.from("sites").select("lead_id, status"),
+  ]);
+  const comSite = new Set((sites || []).filter((s) => s.status !== "erro").map((s) => s.lead_id));
+  const ordem = { fechado: 0, interessado: 1, liguei: 2, sem_resposta: 3, novo: 4, perdido: 5 };
+  criarCache = (leads || [])
+    .map((l) => ({ ...l, _temSite: comSite.has(l.id) }))
+    .sort((a, b) => (a._temSite - b._temSite) || (ordem[a.status] - ordem[b.status]) || (pontuar(b) - pontuar(a)));
+  filtrarCriar();
+}
+function filtrarCriar() {
+  const q = normal($("#busca-criar").value);
+  const lista = q
+    ? criarCache.filter((l) => normal(l.nome).includes(q))
+    : criarCache.filter((l) => ["interessado", "fechado"].includes(l.status) && !l._temSite);
+  desenharLeads(lista.slice(0, 50), $("#lista-criar"), (li, l) => {
+    if (l._temSite) {
+      const p = document.createElement("p");
+      p.className = "motivos"; p.textContent = "Já tem site gerado (veja em Sites gerados)";
+      $(".lead__cabeca > div", li).append(p);
+    }
+  }, q ? "Nenhum lead com esse nome." : "Nenhum interessado sem site. Procure pelo nome acima ou marque leads como Interessado.");
+}
+$("#busca-criar").addEventListener("input", filtrarCriar);
+
+// ---------- meus contatos ----------
+async function carregarContatos() {
+  const { data, error } = await sb.from("leads").select("*").order("atualizado_em", { ascending: false }).limit(1000);
   if (error) return;
   leadsCache = data;
-  filtrarLeads();
+  filtrarContatos();
 }
-function filtrarLeads() {
+function filtrarContatos() {
   const st = $("#filtro-status").value;
-  const q = $("#filtro-texto").value.trim().toLowerCase();
+  const q = normal($("#filtro-texto").value);
   const lista = leadsCache.filter((l) =>
-    (!st || l.status === st) &&
-    (!q || [l.nome, l.endereco, l.categoria].join(" ").toLowerCase().includes(q)));
-  desenharLeads(lista, $("#lista-leads"));
+    (st ? l.status === st : l.status !== "novo") &&
+    (!q || normal([l.nome, l.endereco, l.categoria].join(" ")).includes(q)));
+  desenharLeads(lista, $("#lista-contatos"), null, st ? "Ninguém com esse status." : "Você ainda não mudou o status de nenhum lead. Comece por Oportunidades.");
 }
-$("#filtro-status").addEventListener("change", filtrarLeads);
-$("#filtro-texto").addEventListener("input", filtrarLeads);
+$("#filtro-status").addEventListener("change", filtrarContatos);
+$("#filtro-texto").addEventListener("input", filtrarContatos);
 
+// ---------- histórico ----------
+async function carregarHistorico() {
+  historicoCache = null;
+  const buscas = await historico();
+  const ul = $("#lista-historico");
+  if (!buscas.length) { ul.innerHTML = '<li class="vazio">Nenhuma busca ainda.</li>'; return; }
+  ul.replaceChildren(...buscas.map((b) => {
+    const li = document.createElement("li");
+    li.className = "site historico";
+    const info = document.createElement("div");
+    const h = document.createElement("h2");
+    h.className = "historico__titulo"; h.textContent = `${b.nicho} · ${b.cidade}`;
+    const meta = document.createElement("p");
+    meta.className = "site__meta";
+    meta.textContent = `${new Date(b.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · ${b.total} encontrados · ${b.sem_site} sem site`;
+    info.append(h, meta);
+    const acoes = document.createElement("div");
+    acoes.className = "lead__acoes";
+    const ver = document.createElement("button");
+    ver.type = "button"; ver.className = "botao"; ver.textContent = "Ver leads";
+    const lista = document.createElement("ul");
+    lista.className = "lista historico__leads";
+    lista.hidden = true;
+    ver.addEventListener("click", async () => {
+      if (!lista.hidden) { lista.hidden = true; ver.textContent = "Ver leads"; return; }
+      const { data } = await sb.from("leads").select("*").eq("busca_id", b.id).limit(100);
+      desenharLeads((data || []).sort((x, y) => pontuar(y) - pontuar(x)), lista, null,
+        "Os leads dessa busca foram atualizados por uma busca mais nova.");
+      lista.hidden = false; ver.textContent = "Esconder";
+    });
+    const repetir = document.createElement("button");
+    repetir.type = "button"; repetir.className = "botao"; repetir.textContent = "Buscar de novo";
+    repetir.addEventListener("click", () => {
+      abrirAba("buscar");
+      txtNicho.value = b.nicho;
+      formBusca.elements.cidade.value = b.cidade;
+      executarBusca(b.nicho, b.cidade);
+    });
+    acoes.append(ver, repetir);
+    li.append(info, acoes, lista);
+    return li;
+  }));
+}
 // ---------- sites ----------
 async function carregarSites() {
   const ul = $("#lista-sites");
