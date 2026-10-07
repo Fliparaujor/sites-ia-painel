@@ -79,6 +79,7 @@ function abrirAba(nome) {
   $("#titulo-movel").textContent = SECOES[nome];
   history.replaceState(null, "", `#${nome}`);
   menuMovel(false);
+  if (nome === "buscar") mostrarCota();
   if (nome === "oportunidades") carregarOportunidades();
   if (nome === "criar") carregarCriar();
   if (nome === "contatos") carregarContatos();
@@ -309,6 +310,7 @@ async function executarBusca(nicho, cidade) {
     const d = await r.json();
     if (!r.ok) throw new Error(d.erro || `erro ${r.status}`);
     historicoCache = null;
+    mostrarCota();
     const soRede = d.leads.filter((l) => l.site_atual).length;
     resumo.textContent = `${d.total} encontrados, ${d.leads.length} sem site${soRede ? ` (${soRede} só com rede social)` : ""}.`;
     desenharLeads(d.leads.sort((a, b) => pontuar(b) - pontuar(a)), $("#lista-busca"));
@@ -323,6 +325,23 @@ formBusca.addEventListener("submit", (e) => {
   executarBusca(termoBuscado(), formBusca.elements.cidade.value.trim());
 });
 
+// ---------- cota grátis do Google ----------
+// Mesmos limites do Worker (wrangler.toml). O mês segue o fuso do faturamento do Google.
+const LIMITE = { busca: 950, detalhes: 950, fotos: 950 };
+async function mostrarCota() {
+  const p = $("#cota-google");
+  const partes = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit" })
+      .formatToParts(new Date()).map((x) => [x.type, x.value]),
+  );
+  const { data, error } = await sb.from("uso_google").select("tipo, chamadas").eq("mes", `${partes.year}-${partes.month}`);
+  if (error) { p.textContent = ""; return; }
+  const uso = { busca: 0, detalhes: 0, fotos: 0 };
+  for (const r of data) uso[r.tipo] = r.chamadas;
+  const pesquisas = Math.floor((LIMITE.busca - uso.busca) / 3);
+  const sites = Math.min(LIMITE.detalhes - uso.detalhes, Math.floor((LIMITE.fotos - uso.fotos) / 10));
+  p.textContent = `Grátis do Google neste mês: ainda dá pra umas ${Math.max(pesquisas, 0)} pesquisas e ${Math.max(sites, 0)} sites com 10 fotos. Ao chegar no limite o sistema para sozinho, sem cobrar.`;
+}
 // ---------- oportunidades ----------
 // Pontua o quanto vale ligar: sem site, nota boa, muitas avaliações, fotos (o site sai melhor).
 function pontuar(l) {
