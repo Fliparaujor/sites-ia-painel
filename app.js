@@ -273,7 +273,6 @@ selNicho.addEventListener("change", preencherSubnichos);
 selSub.addEventListener("change", avisarRepetida);
 txtNicho.addEventListener("input", avisarRepetida);
 formBusca.elements.cidade.addEventListener("change", avisarRepetida);
-preencherSubnichos();
 
 function termoBuscado() {
   return txtNicho.value.trim() || selSub.value;
@@ -298,6 +297,7 @@ async function avisarRepetida() {
     ? `Você já buscou isso em ${new Date(igual.criado_em).toLocaleDateString("pt-BR")} (${igual.sem_site} sem site). Buscar de novo atualiza a lista e mantém status e anotações.`
     : "";
 }
+preencherSubnichos();
 
 async function executarBusca(nicho, cidade) {
   const botao = $('button[type="submit"]', formBusca);
