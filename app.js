@@ -127,6 +127,11 @@ async function gerarPelaApi(lead, botao, progresso) {
   try {
     const r = await chamarWorker("/api/gerar", { lead_id: lead.id });
     if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).erro || `erro ${r.status}`);
+    if ((r.headers.get("content-type") || "").includes("application/json")) {
+      const d = await r.json();
+      acompanharFila(d.site_id, progresso);
+      return;
+    }
     const leitor = r.body.pipeThrough(new TextDecoderStream()).getReader();
     let resto = "";
     for (;;) {
@@ -159,6 +164,48 @@ async function gerarPelaApi(lead, botao, progresso) {
   } finally {
     botao.disabled = false;
   }
+}
+
+// Modo lote: o pedido fica na fila da API. Confere a cada 30 s enquanto a página estiver aberta;
+// com a página fechada, o Worker confere sozinho a cada 5 min e o link aparece em "Sites".
+async function conferirSite(siteId) {
+  const r = await chamarWorker("/api/status", { site_id: siteId });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.erro || `erro ${r.status}`);
+  return d;
+}
+
+function mostrarPronto(progresso, d) {
+  progresso.innerHTML = "";
+  const a = document.createElement("a");
+  a.href = d.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Abrir o site";
+  progresso.append("Pronto. ", a);
+  if (d.pendencias?.length) progresso.append(` Confirmar com o cliente: ${d.pendencias.join("; ")}.`);
+}
+
+function acompanharFila(siteId, progresso) {
+  const inicio = Date.now();
+  const texto = (etapa) =>
+    `Na fila da API${etapa === "corrigir" ? " (ajustando detalhes)" : ""}. Costuma levar minutos, pode passar de uma hora. Pode fechar: o link aparece em Sites. Esperando há ${Math.round((Date.now() - inicio) / 60000)} min.`;
+  progresso.textContent = texto("gerar");
+  const tique = async () => {
+    if (!progresso.isConnected) return;
+    try {
+      const d = await conferirSite(siteId);
+      if (d.status === "pronto") return mostrarPronto(progresso, d);
+      if (d.status === "erro") {
+        progresso.innerHTML = "";
+        const s = document.createElement("span");
+        s.className = "erro"; s.textContent = `Falhou: ${d.erro || "erro"}`;
+        return progresso.append(s);
+      }
+      progresso.textContent = texto(d.etapa);
+    } catch {
+      // falha de rede: tenta de novo no próximo tique
+    }
+    setTimeout(tique, 30000);
+  };
+  setTimeout(tique, 30000);
 }
 
 async function prepararLocal(lead, botao, progresso) {
@@ -250,13 +297,33 @@ async function carregarSites() {
     const meta = document.createElement("p");
     meta.className = "site__meta";
     const quando = new Date(s.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-    const estado = { pronto: "pronto", gerando: "gerando", aguardando: "esperando o Claude Code", erro: "erro" }[s.status];
+    const estado = {
+      pronto: "pronto", gerando: "preparando fotos", na_fila: "na fila da API",
+      aguardando: "esperando o Claude Code", erro: "erro",
+    }[s.status];
     meta.textContent = `${estado} · ${s.modelo || ""} · ${quando}`;
     li.append(h, meta);
     if (s.status === "erro" && s.erro) {
       const p = document.createElement("p");
       p.className = "erro"; p.textContent = s.erro;
       li.append(p);
+    }
+    if (s.status === "na_fila") {
+      const conferir = document.createElement("button");
+      conferir.type = "button"; conferir.className = "botao"; conferir.textContent = "Conferir agora";
+      conferir.addEventListener("click", async () => {
+        conferir.disabled = true;
+        try {
+          const d = await conferirSite(s.id);
+          if (d.status !== "na_fila") return carregarSites();
+          conferir.textContent = "Ainda na fila";
+        } catch (e) {
+          conferir.textContent = `Falhou: ${e.message}`;
+        } finally {
+          conferir.disabled = false;
+        }
+      });
+      li.append(conferir);
     }
     if (s.status === "aguardando") {
       const p = document.createElement("p");
