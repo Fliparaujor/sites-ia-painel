@@ -67,11 +67,15 @@ async function baixarArquivos(site, nome, botao) {
       if (img.ok) arquivos[`${pasta}/${f.arquivo}`] = [new Uint8Array(await img.arrayBuffer()), { level: 0 }];
     }
     const blob = new Blob([zipSync(arquivos)], { type: "application/zip" });
+    // Link visível: se o navegador barrar o download automático, é só clicar nele.
+    botao.parentElement.querySelector(".link-zip")?.remove();
     const a = document.createElement("a");
+    a.className = "botao botao--forte link-zip";
     a.href = URL.createObjectURL(blob);
     a.download = `${site.slug}.zip`;
+    a.textContent = `Salvar ${site.slug}.zip`;
+    botao.after(a);
     a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     botao.textContent = textoOriginal;
   } catch (e) {
     botao.textContent = `Falhou: ${e.message}`;
@@ -327,6 +331,14 @@ async function prepararLocal(lead, botao, progresso) {
       copiar.textContent = "Copiado";
     });
     progresso.append(`${d.fotos} fotos prontas. No Claude Code, rode `, c, " ", copiar);
+    const levar = document.createElement("div");
+    levar.className = "lead__acoes";
+    levar.style.marginTop = "var(--e2)";
+    const baixar = document.createElement("button");
+    baixar.type = "button"; baixar.className = "botao"; baixar.textContent = "Baixar arquivos (.zip) pra outro Claude";
+    baixar.addEventListener("click", () => baixarArquivos({ slug: d.slug }, lead.nome, baixar));
+    levar.append(baixar);
+    progresso.append(levar);
   } catch (e) {
     progresso.textContent = `Falhou: ${e.message}`;
   } finally {
