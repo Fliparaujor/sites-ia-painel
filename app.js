@@ -1,6 +1,7 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_KEY, WORKER_URL, SEU_NOME } from "./config.js";
 import { NICHOS } from "./nichos.js";
+import { zipSync, strToU8 } from "https://cdn.jsdelivr.net/npm/fflate@0.8.2/esm/browser.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = (s, el = document) => el.querySelector(s);
@@ -33,6 +34,79 @@ async function chamarWorker(caminho, corpo) {
     body: JSON.stringify(corpo),
   });
   return r;
+}
+
+// ---------- levar o site pra outro Claude ----------
+const LEIA_ME = (nome, slug) => `Site de ${nome} (slug ${slug})
+
+Pra gerar em qualquer Claude:
+1. Abra uma conversa nova e anexe TODOS os arquivos desta pasta: manual.md, design-director.md, dados.json e as fotos da pasta img.
+2. Cole o conteúdo de PROMPT.txt como mensagem e envie.
+3. O Claude responde com a direção e o HTML. Salve o HTML como index.html nesta mesma pasta (ao lado da pasta img) e abra com dois cliques pra conferir.
+4. Pra publicar: painel, Sites gerados, botão "Publicar HTML" neste site, e escolha o index.html.
+`;
+
+async function baixarArquivos(site, nome, botao) {
+  botao.disabled = true;
+  const textoOriginal = botao.textContent;
+  botao.textContent = "Montando o zip…";
+  try {
+    const r = await fetch(`${WORKER_URL}/api/arquivos/${site.slug}`, { headers: { Authorization: `Bearer ${await token()}` } });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || `erro ${r.status}`);
+    const pasta = site.slug;
+    const arquivos = {
+      [`${pasta}/LEIA-ME.txt`]: strToU8(LEIA_ME(nome, site.slug)),
+      [`${pasta}/PROMPT.txt`]: strToU8(`Siga primeiro o manual.md (regras da casa) e depois o design-director.md (pacote de direção; o manual vence quando divergirem). As fotos anexadas são os arquivos img/N.jpg citados nos dados.\n\n${d.prompt}`),
+      [`${pasta}/manual.md`]: strToU8(d.manual),
+      [`${pasta}/design-director.md`]: strToU8(d.pacote),
+      [`${pasta}/dados.json`]: strToU8(JSON.stringify(d.dados, null, 2)),
+    };
+    for (const f of d.dados.fotos) {
+      const img = await fetch(`${WORKER_URL}/s/${site.slug}/${f.arquivo}`);
+      if (img.ok) arquivos[`${pasta}/${f.arquivo}`] = [new Uint8Array(await img.arrayBuffer()), { level: 0 }];
+    }
+    const blob = new Blob([zipSync(arquivos)], { type: "application/zip" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${site.slug}.zip`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    botao.textContent = textoOriginal;
+  } catch (e) {
+    botao.textContent = `Falhou: ${e.message}`;
+  } finally {
+    botao.disabled = false;
+  }
+}
+
+function publicarHtml(site, botao) {
+  const entrada = document.createElement("input");
+  entrada.type = "file";
+  entrada.accept = ".html,text/html";
+  entrada.addEventListener("change", async () => {
+    const arquivo = entrada.files?.[0];
+    if (!arquivo) return;
+    botao.disabled = true;
+    botao.textContent = "Publicando…";
+    try {
+      const r = await fetch(`${WORKER_URL}/api/publicar/${site.slug}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "text/html; charset=utf-8" },
+        body: await arquivo.text(),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.erro || `erro ${r.status}`);
+      const erros = (d.achados || []).filter((a) => a.gravidade === "erro");
+      botao.textContent = erros.length ? `Publicado, com ${erros.length} alerta(s) do verificador` : "Publicado";
+      setTimeout(carregarSites, 1500);
+    } catch (e) {
+      botao.textContent = `Falhou: ${e.message}`;
+    } finally {
+      botao.disabled = false;
+    }
+  });
+  entrada.click();
 }
 
 // ---------- login ----------
@@ -518,6 +592,18 @@ async function carregarSites() {
         }
       });
       li.append(conferir);
+    }
+    if (s.status !== "gerando" && s.status !== "na_fila") {
+      const levar = document.createElement("div");
+      levar.className = "lead__acoes";
+      const baixar = document.createElement("button");
+      baixar.type = "button"; baixar.className = "botao"; baixar.textContent = "Baixar arquivos (.zip)";
+      baixar.addEventListener("click", () => baixarArquivos(s, nome, baixar));
+      const subir = document.createElement("button");
+      subir.type = "button"; subir.className = "botao"; subir.textContent = "Publicar HTML";
+      subir.addEventListener("click", () => publicarHtml(s, subir));
+      levar.append(baixar, subir);
+      li.append(levar);
     }
     if (s.status === "aguardando") {
       const p = document.createElement("p");
