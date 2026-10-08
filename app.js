@@ -128,8 +128,14 @@ function cartaoLead(lead) {
   if (lead.qtd_fotos === 0) {
     botaoGerar.title = "Sem fotos no Maps: o site vai sair só com texto";
   }
-  botaoGerar.addEventListener("click", () => gerarPelaApi(lead, botaoGerar, progresso));
-  botaoLocal.addEventListener("click", () => prepararLocal(lead, botaoLocal, progresso));
+  // Salva o briefing antes de gerar, pra não perder o que acabou de ser digitado.
+  const salvarBriefing = async () => {
+    if ((lead.briefing || "") === briefing.value) return;
+    await sb.from("leads").update({ briefing: briefing.value }).eq("id", lead.id);
+    lead.briefing = briefing.value;
+  };
+  botaoGerar.addEventListener("click", async () => { await salvarBriefing(); gerarPelaApi(lead, botaoGerar, progresso); });
+  botaoLocal.addEventListener("click", async () => { await salvarBriefing(); prepararLocal(lead, botaoLocal, progresso); });
   return li;
 }
 
