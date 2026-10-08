@@ -140,7 +140,10 @@
         <button type="button" class="botao botao--forte" data-acao="gerar">Gerar site (fila da API)</button>
         <button type="button" class="botao" data-acao="local">Gerar no Claude Code</button>
       </div>
-      <label class="lead__obs">Anotações <textarea rows="2"></textarea></label>
+      <label class="lead__briefing">Briefing pro site <span class="dica">o Claude lê isto ao gerar</span>
+        <textarea rows="3" placeholder="ex.: o dono se chama João; cores da marca azul e amarelo; tem estacionamento; destacar o rodízio de terça; tom mais descontraído"></textarea>
+      </label>
+      <label class="lead__obs">Anotações <span class="dica">só pra você, não vai pro site</span> <textarea rows="2"></textarea></label>
       <div class="lead__progresso" role="status" aria-live="polite"></div>
     </li>
   </template>

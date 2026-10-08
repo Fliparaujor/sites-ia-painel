@@ -102,6 +102,13 @@ function cartaoLead(lead) {
     lead.status = sel.value;
   });
 
+  const briefing = $(".lead__briefing textarea", li);
+  briefing.value = lead.briefing || "";
+  briefing.addEventListener("change", async () => {
+    await sb.from("leads").update({ briefing: briefing.value }).eq("id", lead.id);
+    lead.briefing = briefing.value;
+  });
+
   const obs = $(".lead__obs textarea", li);
   obs.value = lead.obs || "";
   obs.addEventListener("change", () => sb.from("leads").update({ obs: obs.value }).eq("id", lead.id));

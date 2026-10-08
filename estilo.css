@@ -90,6 +90,8 @@ select { min-width: 0; text-overflow: ellipsis; }
 .lead__status { width: 160px; flex: none; }
 .lead__acoes { display: flex; flex-wrap: wrap; gap: var(--e2); }
 .lead__progresso:empty { display: none; }
+.dica { font-size: 13px; color: var(--suave); opacity: .8; margin-left: var(--e1); }
+.lead__briefing textarea { border-color: var(--acento); }
 .lead__progresso, .site__pendencias { font-size: 14px; color: var(--suave); }
 .lead__progresso code, .comando { font-family: ui-monospace, Consolas, monospace; background: var(--fundo); padding: 2px 6px; border-radius: 4px; color: var(--texto); }
 .erro { color: var(--erro); }
